@@ -111,14 +111,14 @@
             {
                 <h2>Waiting</h2>
             }
-            
+
             <hr />
 
             <p>
                 <b>Players</b>
                 (@MyRoom.Players.Count / @config.NumPlayers)
             </p>
-            @foreach (var name in MyRoom.Assignments.Keys)
+            @foreach (var name in MyRoom.Players)
             {
                 @if (AmRoomCreator && name != MyName)
                 {
@@ -134,13 +134,13 @@
         @if (MyRoom.Active)
         {
             <h2>Playing</h2>
-            <hr/>
+            <hr />
 
             <p>
-                You are @GetRoleName().
+                You are @GetMyRoleName().
             </p>
 
-            @foreach (var text in knowledge)
+            @foreach (var text in GetKnowledge())
             {
                 <p>
                     @text
@@ -156,7 +156,23 @@
     Room MyRoom;
     bool AmRoomCreator => MyName == MyRoom.Creator;
     GameInformation info => MyRoom.Assignments.GetValueOrDefault(MyName, null);
-    List<string> knowledge => info == null ? new List<string>() : info.Knowledge;
+
+    List<string> GetKnowledge()
+    {
+        if (MyName == "Spectator")
+        {
+            return MyRoom.Assignments.Select(kv => $"{kv.Key} is {GetRoleName(kv.Value.YourRole)}").ToList();
+        }
+        else if (info != null)
+        {
+            return info.Knowledge;
+        }
+        else
+        {
+            return new List<string>();
+        }
+    }
+
 
     bool HasName => MyName != "";
     bool HasRoom => MyRoom != null;
@@ -172,21 +188,33 @@
     void JoinRoom(Guid roomId)
     {
         rooms.GetRoom(roomId).Players.Add(MyName);
+        ResetRoom();
     }
 
     void RemoveFromRoom(string playerName)
     {
         MyRoom.Players.Remove(playerName);
+        ResetRoom();
     }
 
-    string GetRoleName()
+    void ResetRoom()
+    {
+        MyRoom = rooms.GetRoomForPlayer(MyName);
+    }
+
+    string GetMyRoleName()
     {
         if (info is null)
         {
             return "Roll not yet assigned";
         }
 
-        switch (info.YourRole)
+        return GetRoleName(info.YourRole);
+    }
+
+    string GetRoleName(Role role)
+    {
+        switch (role)
         {
             case Role.GenericGood: return "Generic Good";
             case Role.GenericEvil: return "Generic Evil";
@@ -199,7 +227,7 @@
     {
         dylan.RefreshEvent += (async () =>
         {
-            MyRoom = rooms.GetRoomForPlayer(MyName);
+            ResetRoom();
             await this.Invoke(() => this.StateHasChanged());
         });
         base.OnInit();

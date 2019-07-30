@@ -20,6 +20,5 @@ namespace Blavalon.Data
         }
 
         public event Action RefreshEvent;
-
     }
 }
