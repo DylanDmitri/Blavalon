@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29123.89
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blavalon", "Blavalon\Blavalon.csproj", "{F32EE56E-84C6-461E-A99B-D97AF3930FCB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F32EE56E-84C6-461E-A99B-D97AF3930FCB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F32EE56E-84C6-461E-A99B-D97AF3930FCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F32EE56E-84C6-461E-A99B-D97AF3930FCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F32EE56E-84C6-461E-A99B-D97AF3930FCB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BD46BBC7-23C2-4986-B423-EC718D6266FB}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,207 @@
+﻿@page "/"
+@using Blavalon.Data
+@inject RoomService rooms
+@inject DylanAsAService dylan
+
+<div class="jumbotron">
+    <h1 class="display-4">Blavalon</h1>
+
+    @if (HasName || HasRoom)
+    {
+        <hr />
+    }
+    @if (HasName)
+    {
+        <p class="lead">Welcome, @MyName!</p>
+    }
+    @if (HasRoom)
+    {
+        <p class="lead">You are in: @MyRoom.Status.Name </p>
+    }
+</div>
+
+@if (!HasName)
+{
+    <div class="jumbotron">
+        <h1>Join a Game</h1>
+        <p>
+            Please use your real name. Your group needs to be able to identify you without having to ask who you are.
+        </p>
+
+        <input type="text" placeholder="username" @bind="@MyName" />
+    </div>
+}
+
+@if (HasName && !HasRoom)
+{
+    <div class="jumbotron">
+        <button class="btn btn-primary btn-lg btn-block" @onclick="CreateRoom">Create Room</button>
+        <hr />
+        @foreach (var description in rooms.Descriptions)
+        {
+            <button class="btn btn-secondary btn-lg btn-block" @onclick=@(() => JoinRoom(description.Id))>
+                @description.Name
+                <small>@description.Status</small>
+            </button>
+        }
+    </div>
+}
+
+@if (HasName && HasRoom)
+{
+    <div class="jumbotron">
+        <button class="btn btn-outline-danger" style="float:right;" @onclick="@(() => RemoveFromRoom(MyName))">Leave Room</button>
+
+        @if (!MyRoom.Active)
+        {
+
+            @if (AmRoomCreator)
+            {
+                <h2>Configuring</h2>
+
+                <br />
+                <select class="form-control" @bind="@config.NumPlayers">
+                    @for (int i = 5; i <= 12; i++)
+                    {
+                        <option value="@i">@i Players</option>
+                    }
+                </select>
+
+                <br />
+                <b>Good</b>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Merlin" @bind="@config.HasMerlin" />
+                    <label for="Merlin" class="form-check-label">Merlin</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Percival" @bind="@config.HasPercival" />
+                    <label for="Percival" class="form-check-label">Percival</label>
+                </div>
+
+                <b>Evil</b>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Mordred" @bind="@config.HasMordred" />
+                    <label for="Mordred" class="form-check-label">Mordred</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Morganna" @bind="@config.HasMorganna" />
+                    <label for="Morganna" class="form-check-label">Morganna</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Assassin" @bind="@config.HasAssassin" />
+                    <label for="Assassin" class="form-check-label">Assassin</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Oberron" @bind="@config.HasOberron" />
+                    <label for="Oberron" class="form-check-label">Oberron</label>
+                </div>
+
+                <br />
+                @if (MyRoom.Players.Count == config.NumPlayers)
+                {
+                    <button class="btn btn-primary btn-lg btn-block" @onclick="MyRoom.StartGame">Start Game</button>
+                }
+                else
+                {
+                    var text = MyRoom.Players.Count < config.NumPlayers ? "Waiting for players..." : "Too many players";
+                    <button class="btn btn-lg btn-block" style="color:white;background-color:grey" disabled>@text</button>
+                }
+            }
+            @if (!AmRoomCreator)
+            {
+                <h2>Waiting</h2>
+            }
+            
+            <hr />
+
+            <p>
+                <b>Players</b>
+                (@MyRoom.Players.Count / @config.NumPlayers)
+            </p>
+            @foreach (var name in MyRoom.Assignments.Keys)
+            {
+                @if (AmRoomCreator && name != MyName)
+                {
+                    <button class="btn-dark" style="margin:.4em" @onclick="@(() => RemoveFromRoom(name))"><small>@name (kick)</small></button>
+                }
+                else
+                {
+                    <button class="btn-dark" style="margin:.4em" disabled>@name</button>
+                }
+            }
+        }
+
+        @if (MyRoom.Active)
+        {
+            <h2>Playing</h2>
+            <hr/>
+
+            <p>
+                You are @GetRoleName().
+            </p>
+
+            @foreach (var text in knowledge)
+            {
+                <p>
+                    @text
+                </p>
+            }
+        }
+    </div>
+}
+
+@code {
+    string MyName = "";
+
+    Room MyRoom;
+    bool AmRoomCreator => MyName == MyRoom.Creator;
+    GameInformation info => MyRoom.Assignments.GetValueOrDefault(MyName, null);
+    List<string> knowledge => info == null ? new List<string>() : info.Knowledge;
+
+    bool HasName => MyName != "";
+    bool HasRoom => MyRoom != null;
+
+    RoomConfiguration config => MyRoom.Config;
+
+    void CreateRoom()
+    {
+        var id = rooms.CreateRoom(MyName);
+        JoinRoom(id);
+    }
+
+    void JoinRoom(Guid roomId)
+    {
+        rooms.GetRoom(roomId).Players.Add(MyName);
+    }
+
+    void RemoveFromRoom(string playerName)
+    {
+        MyRoom.Players.Remove(playerName);
+    }
+
+    string GetRoleName()
+    {
+        if (info is null)
+        {
+            return "Roll not yet assigned";
+        }
+
+        switch (info.YourRole)
+        {
+            case Role.GenericGood: return "Generic Good";
+            case Role.GenericEvil: return "Generic Evil";
+            case Role.Assassin: return "the Assassin";
+            default: return info.YourRole.ToString();
+        }
+    }
+
+    protected override void OnInit()
+    {
+        dylan.RefreshEvent += (async () =>
+        {
+            MyRoom = rooms.GetRoomForPlayer(MyName);
+            await this.Invoke(() => this.StateHasChanged());
+        });
+        base.OnInit();
+    }
+}
