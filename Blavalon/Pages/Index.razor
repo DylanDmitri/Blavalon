@@ -99,7 +99,7 @@
                 <br />
                 @if (MyRoom.Players.Count == config.NumPlayers)
                 {
-                    <button class="btn btn-primary btn-lg btn-block" @onclick="MyRoom.StartGame">Start Game</button>
+                    <button class="btn btn-primary btn-lg btn-block" @onclick="StartGame">Start Game</button>
                 }
                 else
                 {
@@ -151,34 +151,10 @@
 }
 
 @code {
+    // name is the only local state, other values are retreived from server
     string MyName = "";
 
-    Room MyRoom;
-    bool AmRoomCreator => MyName == MyRoom.Creator;
-    GameInformation info => MyRoom.Assignments.GetValueOrDefault(MyName, null);
-
-    List<string> GetKnowledge()
-    {
-        if (MyName == "Spectator")
-        {
-            return MyRoom.Assignments.Select(kv => $"{kv.Key} is {GetRoleName(kv.Value.YourRole)}").ToList();
-        }
-        else if (info != null)
-        {
-            return info.Knowledge;
-        }
-        else
-        {
-            return new List<string>();
-        }
-    }
-
-
-    bool HasName => MyName != "";
-    bool HasRoom => MyRoom != null;
-
-    RoomConfiguration config => MyRoom.Config;
-
+    // these actions change server state; forcing other clients to reload
     void CreateRoom()
     {
         var id = rooms.CreateRoom(MyName);
@@ -188,19 +164,31 @@
     void JoinRoom(Guid roomId)
     {
         rooms.GetRoom(roomId).Players.Add(MyName);
-        ResetRoom();
+        dylan.ForceRefresh();
     }
 
     void RemoveFromRoom(string playerName)
     {
         MyRoom.Players.Remove(playerName);
-        ResetRoom();
+        dylan.ForceRefresh();
     }
 
-    void ResetRoom()
+    void StartGame()
     {
-        MyRoom = rooms.GetRoomForPlayer(MyName);
+        MyRoom.StartGame();
+        dylan.ForceRefresh();
     }
+
+    // these methods retreive information but don't modify anything
+    Room MyRoom;
+
+    bool AmRoomCreator => MyName == MyRoom.Creator;
+    GameInformation info => MyRoom.Assignments.GetValueOrDefault(MyName, null);
+
+    bool HasName => MyName != "";
+    bool HasRoom => MyRoom != null;
+
+    RoomConfiguration config => MyRoom.Config;
 
     string GetMyRoleName()
     {
@@ -219,7 +207,23 @@
             case Role.GenericGood: return "Generic Good";
             case Role.GenericEvil: return "Generic Evil";
             case Role.Assassin: return "the Assassin";
-            default: return info.YourRole.ToString();
+            default: return role.ToString();
+        }
+    }
+
+    List<string> GetKnowledge()
+    {
+        if (MyName == "Spectator")
+        {
+            return MyRoom.Assignments.Select(kv => $"{kv.Key} is {GetRoleName(kv.Value.YourRole)}").ToList();
+        }
+        else if (info != null)
+        {
+            return info.Knowledge;
+        }
+        else
+        {
+            return new List<string>();
         }
     }
 
@@ -227,7 +231,7 @@
     {
         dylan.RefreshEvent += (async () =>
         {
-            ResetRoom();
+            MyRoom = rooms.GetRoomForPlayer(MyName);
             await this.Invoke(() => this.StateHasChanged());
         });
         base.OnInit();

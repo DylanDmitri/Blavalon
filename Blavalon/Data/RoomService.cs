@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading;
 
 namespace Blavalon.Data
 {
@@ -10,11 +12,33 @@ namespace Blavalon.Data
         private object _lock = new object();
         private Dictionary<Guid, Room> _rooms = new Dictionary<Guid, Room>();
 
+        private readonly TimeSpan _roomTimeout = TimeSpan.FromHours(2);
+
+        public bool CheckRoomExpiration()
+        {
+            var expired = _rooms.Keys.Where(id => _rooms[id].Age > _roomTimeout).ToList();
+            foreach (var key in expired)
+            {
+                _rooms.Remove(key);
+            }
+
+            return expired.Count > 0;
+        }
+
         public List<RoomStatus> Descriptions =>
             _rooms.Values
-                .OrderBy(room => room._timeCreated).Reverse()
+                .OrderBy(room => room.Age)
                 .Select(room => room.Status)
                 .ToList();
+
+        public Room GetRoom(Guid key)
+        {
+            if (_rooms.TryGetValue(key, out Room room))
+            {
+                return room;
+            }
+            throw new KeyNotFoundException();
+        }
 
         public Guid CreateRoom(string creator)
         {
@@ -23,18 +47,6 @@ namespace Blavalon.Data
                 var id = Guid.NewGuid();
                 _rooms.Add(id, new Room(id, creator));
                 return id;
-            }
-        }
-
-        public Room GetRoom(Guid key)
-        {
-            lock (_lock)
-            {
-                if (_rooms.TryGetValue(key, out Room room))
-                {
-                    return room;
-                }
-                throw new KeyNotFoundException();
             }
         }
 
@@ -64,9 +76,11 @@ namespace Blavalon.Data
         public HashSet<string> Players = new HashSet<string>();
         public Dictionary<string, GameInformation> Assignments = new Dictionary<string, GameInformation>();
 
-        internal Guid _id;
-        internal DateTime _timeCreated;
-        internal Random rnd = new Random();
+        public TimeSpan Age => DateTime.UtcNow - _timeCreated;
+
+        internal readonly Guid _id;
+        internal readonly DateTime _timeCreated;
+        internal readonly Random rnd = new Random();
 
         public Room(Guid id, string creator)
         {
