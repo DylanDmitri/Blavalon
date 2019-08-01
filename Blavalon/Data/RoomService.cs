@@ -9,7 +9,6 @@ namespace Blavalon.Data
 {
     public class RoomService
     {
-        private object _lock = new object();
         private Dictionary<Guid, Room> _rooms = new Dictionary<Guid, Room>();
 
         private readonly TimeSpan _roomTimeout = TimeSpan.FromHours(2);
@@ -42,28 +41,15 @@ namespace Blavalon.Data
 
         public Guid CreateRoom(string creator)
         {
-            lock (_lock)
-            {
-                var id = Guid.NewGuid();
-                _rooms.Add(id, new Room(id, creator));
-                return id;
-            }
+            var id = Guid.NewGuid();
+            _rooms.Add(id, new Room(id, creator));
+            return id;
         }
 
         public Room GetRoomForPlayer(string username)
         {
-            if (username == "") return null;
-
-            lock (_lock)
-            {
-                var possible = _rooms.Values.Where(room => room.Players.Contains(username)).ToList();
-                switch (possible.Count)
-                {
-                    case 0: return null;
-                    case 1: return _rooms[possible[0]._id];
-                    default: throw new InvalidOperationException("User is in multiple rooms.");
-                }
-            }
+            var possible = _rooms.Values.Where(room => room.Players.Contains(username)).OrderBy(room => room.Age).ToList();
+            return possible.Count == 1 ? _rooms[possible[0]._id] : null;
         }
     }
 

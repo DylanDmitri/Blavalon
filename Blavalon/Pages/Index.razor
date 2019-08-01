@@ -1,7 +1,7 @@
 ﻿@page "/"
 @using Blavalon.Data
 @inject RoomService rooms
-@inject DylanAsAService dylan
+@inject DylanAsAService synchronizer
 
 <div class="jumbotron">
     <h1 class="display-4">Blavalon</h1>
@@ -50,7 +50,10 @@
 @if (HasName && HasRoom)
 {
     <div class="jumbotron">
-        <button class="btn btn-outline-danger" style="float:right;" @onclick="@(() => RemoveFromRoom(MyName))">Leave Room</button>
+        @if (!LakeMode)
+        {
+            <button class="btn btn-outline-danger" style="float:right;" @onclick="@(() => RemoveFromRoom(MyName))">Leave Room</button>
+        }
 
         @if (!MyRoom.Active)
         {
@@ -60,8 +63,8 @@
                 <h2>Configuring</h2>
 
                 <br />
-                <select class="form-control" @bind="@config.NumPlayers">
-                    @for (int i = 5; i <= 12; i++)
+                <select class="form-control" @bind="config.NumPlayers">
+                    @for (int i = 2; i <= 12; i++)
                     {
                         <option value="@i">@i Players</option>
                     }
@@ -94,6 +97,12 @@
                 <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="Oberron" @bind="@config.HasOberron" />
                     <label for="Oberron" class="form-check-label">Oberron</label>
+                </div>
+
+                <br />
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="Lake" @bind="@config.LakeShowsRoles" />
+                    <label for="Lake" class="form-check-label">Lake shows specific roles (rather than alignment)</label>
                 </div>
 
                 <br />
@@ -133,17 +142,30 @@
 
         @if (MyRoom.Active)
         {
-            <h2>Playing</h2>
-            <hr />
-
-            <p>
-                You are @GetMyRoleName().
-            </p>
-
-            @foreach (var text in GetKnowledge())
+            @if (!LakeMode)
             {
+                <h2>Playing</h2>
+                <hr />
+
                 <p>
-                    @text
+                    You are @GetMyRoleName().
+                </p>
+
+                @foreach (var text in GetKnowledge())
+                {
+                    <p>
+                        @text
+                    </p>
+                }
+            }
+
+            <button class="btn btn-outline-secondary" @onclick="@(() => LakeMode = !LakeMode)">Toggle Lake Mode</button>
+
+            @if (LakeMode)
+            {
+                <hr />
+                <p>
+                    @GetLakeInfo()
                 </p>
             }
         }
@@ -153,6 +175,7 @@
 @code {
     // name is the only local state, other values are retreived from server
     string MyName = "";
+    bool LakeMode = false;
 
     // these actions change server state; forcing other clients to reload
     void CreateRoom()
@@ -163,27 +186,41 @@
 
     void JoinRoom(Guid roomId)
     {
+        if (HasRoom)
+        {
+            return;
+        }
         rooms.GetRoom(roomId).Players.Add(MyName);
-        dylan.ForceRefresh();
+        synchronizer.ForceRefresh();
     }
 
     void RemoveFromRoom(string playerName)
     {
+        if (!HasRoom)
+        {
+            return;
+        }
+
         MyRoom.Players.Remove(playerName);
-        dylan.ForceRefresh();
+        synchronizer.ForceRefresh();
     }
 
     void StartGame()
     {
+        if (!HasRoom)
+        {
+            return;
+        }
         MyRoom.StartGame();
-        dylan.ForceRefresh();
+        synchronizer.ForceRefresh();
     }
 
     // these methods retreive information but don't modify anything
-    Room MyRoom;
+    Room MyRoom => rooms.GetRoomForPlayer(MyName);
 
     bool AmRoomCreator => MyName == MyRoom.Creator;
     GameInformation info => MyRoom.Assignments.GetValueOrDefault(MyName, null);
+    bool SpectatorMode => MyRoom.Active && !MyRoom.Assignments.ContainsKey(MyName);
 
     bool HasName => MyName != "";
     bool HasRoom => MyRoom != null;
@@ -195,6 +232,10 @@
         if (info is null)
         {
             return "Roll not yet assigned";
+        }
+        if (SpectatorMode)
+        {
+            return "You are spectating";
         }
 
         return GetRoleName(info.YourRole);
@@ -211,9 +252,23 @@
         }
     }
 
+    string GetLakeInfo()
+    {
+        if (config.LakeShowsRoles)
+        {
+            return $"{MyName} is {GetMyRoleName()}.";
+        }
+        else
+        {
+            var good = new[] { Role.GenericGood, Role.Percival, Role.Merlin };
+            var alignment = good.Contains(info.YourRole) ? "good" : "evil";
+            return $"{MyName} is {alignment}.";
+        }
+    }
+
     List<string> GetKnowledge()
     {
-        if (MyName == "Spectator")
+        if (SpectatorMode)
         {
             return MyRoom.Assignments.Select(kv => $"{kv.Key} is {GetRoleName(kv.Value.YourRole)}").ToList();
         }
@@ -229,10 +284,9 @@
 
     protected override void OnInit()
     {
-        dylan.RefreshEvent += (async () =>
+        synchronizer.RefreshEvent += (async () =>
         {
-            MyRoom = rooms.GetRoomForPlayer(MyName);
-            await this.Invoke(() => this.StateHasChanged());
+            await this.Invoke(this.StateHasChanged);
         });
         base.OnInit();
     }
